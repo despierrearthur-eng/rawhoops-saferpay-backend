@@ -1,0 +1,9 @@
+{
+  "name": "rawhoops-saferpay-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend for Raw Hoops' Saferpay (Worldline) payment integration. Deployed as Vercel serverless functions.",
+  "engines": {
+    "node": ">=18"
+  }
+}
