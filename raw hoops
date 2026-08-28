@@ -1,0 +1,4 @@
+cd "/Users/arthur/Documents/Webrise/Raw Hoops/saferpay-backend"
+git remote add origin <your-new-repo-url>
+git branch -M main
+git push -u origin main
