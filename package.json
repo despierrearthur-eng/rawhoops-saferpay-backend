@@ -5,5 +5,8 @@
   "description": "Backend for Raw Hoops' Saferpay (Worldline) payment integration. Deployed as Vercel serverless functions.",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0"
   }
 }

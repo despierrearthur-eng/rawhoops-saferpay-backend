@@ -12,6 +12,8 @@
 // Prices are in whole euros here; Saferpay wants the amount in cents (smallest unit).
 
 const { initializePayment } = require('../lib/saferpay');
+const { saveOrder } = require('../lib/orders');
+const { getAvailability } = require('../lib/seats');
 
 const SITE_BASE_URL = process.env.SITE_BASE_URL || 'https://www.rawhoops.be';
 
@@ -64,6 +66,17 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Capacity gate: refuse to start a payment for a camp that is already full.
+    const avail = await getAvailability(camp);
+    if (avail && avail.full) {
+      res.status(409).json({
+        error: `${camp} is volzet. Mail hello@rawhoops.be om op de wachtlijst te komen.`,
+        code: 'CAMP_FULL',
+        camp,
+      });
+      return;
+    }
+
     const priceEur = CAMP_PRICES_EUR[camp];
     const amountCents = Math.round(priceEur * 100);
     const orderId = `rh-${Date.now()}`;
@@ -86,11 +99,24 @@ module.exports = async (req, res) => {
       currencyCode: 'EUR',
       orderId,
       description: `Raw Hoops – ${camp}${name ? ` – ${name}` : ''}`,
-      returnUrl: `${SITE_BASE_URL}/betaling`,
-      successNotifyUrl: `${backendBaseUrl}/api/payment-notify?outcome=success`,
-      failNotifyUrl: `${backendBaseUrl}/api/payment-notify?outcome=fail`,
+      returnUrl: `${SITE_BASE_URL}/betaling?orderId=${encodeURIComponent(orderId)}`,
+      successNotifyUrl: `${backendBaseUrl}/api/payment-notify?outcome=success&orderId=${encodeURIComponent(orderId)}`,
+      failNotifyUrl: `${backendBaseUrl}/api/payment-notify?outcome=fail&orderId=${encodeURIComponent(orderId)}`,
       payerIp,
       languageCode: 'nl',
+    });
+
+    // Saferpay never sends the token back to us on its own (per the docs) —
+    // we save our own orderId -> token mapping so payment-notify can look it
+    // up when Saferpay calls back with just the orderId we embedded above.
+    await saveOrder(orderId, {
+      token,
+      amountCents,
+      currencyCode: 'EUR',
+      camp,
+      email,
+      name: name || null,
+      createdAt: new Date().toISOString(),
     });
 
     res.status(200).json({ redirectUrl, token, expiration });
