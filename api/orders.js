@@ -14,6 +14,13 @@
 
 const { list } = require('@vercel/blob');
 
+// The Google Apps Script polls this roughly every 15 minutes (see header
+// comment). Listing orders/ is a metered Blob "advanced operation", so a
+// short cache means a manual refresh or a retried poll within this window
+// reuses the last result instead of re-scanning the whole store.
+const ORDERS_CACHE_TTL_MS = 60_000;
+let ordersCache = { at: 0, body: null };
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -33,6 +40,12 @@ module.exports = async (req, res) => {
   }
 
   try {
+    const now = Date.now();
+    if (ordersCache.body && now - ordersCache.at < ORDERS_CACHE_TTL_MS) {
+      res.status(200).json(ordersCache.body);
+      return;
+    }
+
     const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
 
     // Collect every orders/ blob (paginated).
@@ -76,7 +89,9 @@ module.exports = async (req, res) => {
     }
 
     orders.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    res.status(200).json({ count: orders.length, orders });
+    const body = { count: orders.length, orders };
+    ordersCache = { at: now, body };
+    res.status(200).json(body);
   } catch (err) {
     console.error('orders error:', err);
     res.status(500).json({ error: err.message });
