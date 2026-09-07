@@ -15,10 +15,17 @@
 const { list } = require('@vercel/blob');
 
 // The Google Apps Script polls this roughly every 15 minutes (see header
-// comment). Listing orders/ is a metered Blob "advanced operation", so a
-// short cache means a manual refresh or a retried poll within this window
-// reuses the last result instead of re-scanning the whole store.
-const ORDERS_CACHE_TTL_MS = 60_000;
+// comment). Listing orders/ is a metered Blob "advanced operation" — at low
+// admission volume this poll is the dominant source of that usage, not
+// actual registrations.
+//
+// IMPORTANT: a cache TTL shorter than the poll interval gives ZERO
+// reduction against a steady, on-schedule poll (every call is still a
+// miss) — it only protects against retries/duplicate triggers firing close
+// together, which does happen with Apps Script time-driven triggers. The
+// actual fix for the steady 15-min cadence is reducing that trigger's
+// interval in the Apps Script itself (outside this codebase).
+const ORDERS_CACHE_TTL_MS = 5 * 60_000;
 let ordersCache = { at: 0, body: null };
 
 module.exports = async (req, res) => {
